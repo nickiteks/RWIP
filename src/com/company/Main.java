@@ -50,9 +50,9 @@ public class Main {
 
     public static int FindMinSimple(int[] array) {
         int min = array[0];
-        for (int i = 0; i < array.length; i++) {
-            if (array[i] < min) {
-                min = array[i];
+        for (int j : array) {
+            if (j < min) {
+                min = j;
             }
         }
         return min;
@@ -64,50 +64,6 @@ public class Main {
             a[i] = list.get(i).get();
         }
         return a;
-    }
-
-    public static void main(String[] args) throws ExecutionException, InterruptedException {
-
-        int [] array = generateArray(15000000);
-
-        ///////////////////
-        long startTime = System.currentTimeMillis();
-
-        int[] result = divArray(array);
-        long endTime = System.currentTimeMillis();
-
-        System.out.println("Total execution time: " + (endTime - startTime) + "ms");
-
-        startTime = System.currentTimeMillis();
-
-        ///////////////////
-
-        var splitArr = splitArray(array,array.length/12);
-        ThreadPoolExecutor tpe = new ThreadPoolExecutor(6,12,1, TimeUnit.MILLISECONDS,new LinkedBlockingDeque<>());
-        ArrayList<Future<Integer>> Ints = new ArrayList<Future<Integer>>();
-        ArrayList<Future<int[]>> Divs = new ArrayList<Future<int[]>>();
-
-        for (var i : splitArr) {
-            FindInt fi = new FindInt(i);
-            Ints.add(tpe.submit(fi));
-        }
-
-        int[] newArray = ConvertFuture(Ints);
-        int min = FindMinSimple(newArray);
-
-
-        for(var i : splitArr){
-            DivInt di = new DivInt(i,min);
-            Divs.add(tpe.submit(di));
-        }
-        int[][] resultArr = getArr(Divs);
-
-        endTime = System.currentTimeMillis();
-        System.out.println("Total execution time: " + (endTime - startTime) + "ms");
-        tpe.shutdown();
-        //////////////////////////
-
-
     }
 
     public static class FindInt implements Callable<Integer> {
@@ -126,7 +82,6 @@ public class Main {
                     min = j;
                 }
             }
-            //System.out.println("Поток завершился" + max);
             return min;
         }
     }
@@ -147,5 +102,115 @@ public class Main {
             }
             return a;
         }
+    }
+
+    public static class MinFork extends RecursiveTask<Integer>{
+
+        private final int[] array;
+
+        public MinFork(int[] array){
+            this.array = array;
+        }
+
+        @Override
+        protected Integer compute() {
+            if(array.length <= 100) {
+                return computeDirectly();
+            }
+            MinFork right = new MinFork(Arrays.copyOfRange(array,0,array.length/2));
+            MinFork left = new MinFork(Arrays.copyOfRange(array, array.length/2, array.length));
+            right.fork();
+            left.fork();
+            return computeDirectly();
+        }
+        private Integer computeDirectly() {
+            int min = Integer.MAX_VALUE;
+            for (int j : array) {
+                if (j < min) {
+                    min = j;
+                }
+            }
+            return min;
+        }
+    }
+
+    public static class DivFork extends RecursiveTask<int[]>{
+
+        int min;
+        int[] array;
+
+        public DivFork(int min, int[] array){
+            this.min = min;
+            this.array = array;
+        }
+
+        @Override
+        protected int[] compute(){
+            if(array.length <= 100) {
+                return divArr();
+            }
+            MinFork right = new MinFork(Arrays.copyOfRange(array,0,array.length/2));
+            MinFork left = new MinFork(Arrays.copyOfRange(array, array.length/2, array.length));
+            right.fork();
+            left.fork();
+            return null;
+        }
+        private int[] divArr(){
+            for (int i = 0; i<array.length;i++){
+                array[i] = array[i]/min;
+            }
+            return array;
+        }
+    }
+
+    public static void main(String[] args) throws ExecutionException, InterruptedException {
+
+        int [] array = generateArray(15000000);
+        int[] array_test = array.clone();
+        ///////////////////
+        long startTime = System.currentTimeMillis();
+
+        int[] result = divArray(array_test);
+        long endTime = System.currentTimeMillis();
+
+        System.out.println("Total execution time: " + (endTime - startTime) + "ms");
+
+        /////////////////////
+        array_test = array.clone();
+        startTime = System.currentTimeMillis();
+        var splitArr = splitArray(array_test,array.length/6);
+        ThreadPoolExecutor tpe = new ThreadPoolExecutor(6,12,1, TimeUnit.MILLISECONDS,new LinkedBlockingDeque<>());
+        ArrayList<Future<Integer>> Ints = new ArrayList<Future<Integer>>();
+        ArrayList<Future<int[]>> Divs = new ArrayList<Future<int[]>>();
+
+        for (var i : splitArr) {
+            FindInt fi = new FindInt(i);
+            Ints.add(tpe.submit(fi));
+        }
+
+        int[] newArray = ConvertFuture(Ints);
+        int min = FindMinSimple(newArray);
+
+        for(var i : splitArr){
+            DivInt di = new DivInt(i,min);
+            Divs.add(tpe.submit(di));
+        }
+
+        int[][] resultArr = getArr(Divs);
+
+        endTime = System.currentTimeMillis();
+        System.out.println("Total execution time: " + (endTime - startTime) + "ms");
+        tpe.shutdown();
+
+        //////////////////////////
+        array_test = array.clone();
+        startTime = System.currentTimeMillis();
+        MinFork fork = new MinFork(array_test);
+        ForkJoinPool forkJoinPool = new ForkJoinPool();
+        int min_fork = forkJoinPool.invoke(fork);
+        DivFork div_fork = new DivFork(min_fork,array_test);
+        forkJoinPool.invoke(div_fork);
+        endTime = System.currentTimeMillis();
+        System.out.println("Total execution time: " + (endTime - startTime) + "ms");
     }
 }
