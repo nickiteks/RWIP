@@ -107,18 +107,22 @@ public class Main {
     public static class MinFork extends RecursiveTask<Integer>{
 
         private final int[] array;
+        int i;
+        int j;
 
-        public MinFork(int[] array){
+        public MinFork(int[] array, int i, int j){
             this.array = array;
+            this.i = i;
+            this.j = j;
         }
 
         @Override
         protected Integer compute() {
-            if(array.length <= 100) {
+            if(j- i <= 10000) {
                 return computeDirectly();
             }
-            MinFork right = new MinFork(Arrays.copyOfRange(array,0,array.length/2));
-            MinFork left = new MinFork(Arrays.copyOfRange(array, array.length/2, array.length));
+            MinFork right = new MinFork(array,i,((j-i)/2)+i);
+            MinFork left = new MinFork(array, ((j-i)/2)+i, j);
             right.fork();
             left.fork();
             return computeDirectly();
@@ -138,19 +142,23 @@ public class Main {
 
         int min;
         int[] array;
+        int i;
+        int j;
 
-        public DivFork(int min, int[] array){
+        public DivFork(int min, int[] array,int i,int j){
             this.min = min;
             this.array = array;
+            this.i = i;
+            this.j = j;
         }
 
         @Override
         protected int[] compute(){
-            if(array.length <= 100) {
+            if(j-i <= 10000) {
                 return divArr();
             }
-            MinFork right = new MinFork(Arrays.copyOfRange(array,0,array.length/2));
-            MinFork left = new MinFork(Arrays.copyOfRange(array, array.length/2, array.length));
+            MinFork right = new MinFork(array,i,((j-i)/2)+i);
+            MinFork left = new MinFork(array, ((j-i)/2)+i, j);
             right.fork();
             left.fork();
             return null;
@@ -205,10 +213,10 @@ public class Main {
         //////////////////////////
         array_test = array.clone();
         startTime = System.currentTimeMillis();
-        MinFork fork = new MinFork(array_test);
+        MinFork fork = new MinFork(array_test,0,array_test.length);
         ForkJoinPool forkJoinPool = new ForkJoinPool();
         int min_fork = forkJoinPool.invoke(fork);
-        DivFork div_fork = new DivFork(min_fork,array_test);
+        DivFork div_fork = new DivFork(min_fork,array_test,0,array_test.length);
         forkJoinPool.invoke(div_fork);
         endTime = System.currentTimeMillis();
         System.out.println("Total execution time: " + (endTime - startTime) + "ms");
